@@ -1,46 +1,88 @@
 /**
- * Stadium data constants for FIFA World Cup 2026
- * Contains venue info, crowd thresholds, and transport data
+ * @module stadiumData
+ * Core domain data and utility functions for FIFA World Cup 2026 stadium operations.
+ * Provides typed interfaces, venue configurations, crowd analytics helpers,
+ * and multilingual support constants used across all ArenaMind modules.
  */
 
+// ─── Interfaces ──────────────────────────────────────────────────────────────
+
+/** Represents a FIFA World Cup 2026 host venue with zones, routes, and transport. */
 export interface Stadium {
-  id: string;
-  name: string;
-  city: string;
-  country: string;
-  capacity: number;
-  coordinates: { lat: number; lng: number };
-  zones: StadiumZone[];
-  accessibleRoutes: AccessibleRoute[];
-  transportOptions: TransportOption[];
+  readonly id: string;
+  readonly name: string;
+  readonly city: string;
+  readonly country: string;
+  readonly capacity: number;
+  readonly coordinates: Readonly<{ lat: number; lng: number }>;
+  readonly zones: readonly StadiumZone[];
+  readonly accessibleRoutes: readonly AccessibleRoute[];
+  readonly transportOptions: readonly TransportOption[];
 }
 
+/** A discrete zone within a stadium with live occupancy tracking. */
 export interface StadiumZone {
-  id: string;
-  name: string;
-  capacity: number;
-  currentOccupancy: number;
-  alertThreshold: number; // percentage 0-100
-  amenities: string[];
+  readonly id: string;
+  readonly name: string;
+  readonly capacity: number;
+  readonly currentOccupancy: number;
+  /** Alert threshold as a percentage (0-100). Operations are notified when density >= this value. */
+  readonly alertThreshold: number;
+  readonly amenities: readonly string[];
 }
 
+/** A pre-mapped accessible route for fans with disabilities. */
 export interface AccessibleRoute {
-  id: string;
-  name: string;
-  description: string;
-  entranceGate: string;
-  features: string[]; // e.g., 'wheelchair', 'elevator', 'audio_guide'
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly entranceGate: string;
+  /** Feature tags for filtering, e.g. 'wheelchair', 'elevator', 'audio_guide'. */
+  readonly features: readonly string[];
 }
 
+/** A transport option serving a venue with real-time status. */
 export interface TransportOption {
-  type: 'metro' | 'bus' | 'shuttle' | 'taxi' | 'walk';
-  name: string;
-  estimatedTime: number; // minutes
-  frequency: number; // minutes between services
-  currentStatus: 'normal' | 'delayed' | 'disrupted';
+  readonly type: 'metro' | 'bus' | 'shuttle' | 'taxi' | 'walk';
+  readonly name: string;
+  /** Estimated travel time in minutes from the nearest hub. */
+  readonly estimatedTime: number;
+  /** Service frequency in minutes. 0 indicates on-demand. */
+  readonly frequency: number;
+  readonly currentStatus: 'normal' | 'delayed' | 'disrupted';
 }
 
-export const FIFA_STADIUMS: Stadium[] = [
+/** Crowd status classification used for colour-coding and alerts. */
+export type CrowdStatus = 'low' | 'moderate' | 'high' | 'critical';
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+/** Density thresholds (percentage) for crowd status classification. */
+const CROWD_THRESHOLDS = {
+  MODERATE: 50,
+  HIGH: 75,
+  CRITICAL: 90,
+} as const;
+
+/** Colour palette for crowd status visualisation. */
+const CROWD_COLORS: Readonly<Record<CrowdStatus, string>> = {
+  low: '#22c55e',
+  moderate: '#f59e0b',
+  high: '#f97316',
+  critical: '#ef4444',
+} as const;
+
+/** Maximum occupancy fluctuation percentage used in live data simulation. */
+export const SIMULATION_FLUCTUATION_PERCENT = 0.02;
+
+// ─── Venue Data ──────────────────────────────────────────────────────────────
+
+/**
+ * FIFA World Cup 2026 host venues.
+ * Three representative stadiums across USA and Mexico.
+ * Production deployment would include all 16 official venues.
+ */
+export const FIFA_STADIUMS: readonly Stadium[] = [
   {
     id: 'metlife',
     name: 'MetLife Stadium',
@@ -105,54 +147,79 @@ export const FIFA_STADIUMS: Stadium[] = [
       { type: 'bus', name: 'Metrobús FIFA', estimatedTime: 30, frequency: 10, currentStatus: 'normal' },
     ],
   },
-];
+] as const;
+
+// ─── Crowd Analytics Functions ───────────────────────────────────────────────
 
 /**
- * Get crowd density percentage for a zone
+ * Calculate crowd density as a percentage for a given zone.
+ * @param zone - The stadium zone with current occupancy data.
+ * @returns Integer percentage (0-100) representing how full the zone is.
  */
-export function getCrowdDensity(zone: StadiumZone): number {
+export function getCrowdDensity(zone: Pick<StadiumZone, 'currentOccupancy' | 'capacity'>): number {
+  if (zone.capacity <= 0) return 0;
   return Math.round((zone.currentOccupancy / zone.capacity) * 100);
 }
 
 /**
- * Get crowd status label based on density
+ * Classify crowd density into a status level for operational decisions.
+ * Thresholds: <50% low, 50-74% moderate, 75-89% high, ≥90% critical.
+ * @param density - Crowd density as a percentage (0-100).
+ * @returns CrowdStatus classification string.
  */
-export function getCrowdStatus(density: number): 'low' | 'moderate' | 'high' | 'critical' {
-  if (density < 50) return 'low';
-  if (density < 75) return 'moderate';
-  if (density < 90) return 'high';
+export function getCrowdStatus(density: number): CrowdStatus {
+  if (density < CROWD_THRESHOLDS.MODERATE) return 'low';
+  if (density < CROWD_THRESHOLDS.HIGH) return 'moderate';
+  if (density < CROWD_THRESHOLDS.CRITICAL) return 'high';
   return 'critical';
 }
 
 /**
- * Get colour coding for crowd density display
+ * Get the display colour for a crowd status level.
+ * Used by UI components for progress bars, badges, and heatmap cells.
+ * @param status - The CrowdStatus to get a colour for.
+ * @returns CSS hex colour string.
  */
-export function getCrowdColor(status: ReturnType<typeof getCrowdStatus>): string {
-  const colors = {
-    low: '#22c55e',
-    moderate: '#f59e0b',
-    high: '#f97316',
-    critical: '#ef4444',
-  };
-  return colors[status];
+export function getCrowdColor(status: CrowdStatus): string {
+  return CROWD_COLORS[status];
 }
 
 /**
- * Get a stadium by its ID
+ * Look up a stadium by its unique identifier.
+ * @param id - The stadium ID to search for.
+ * @returns The matching Stadium object, or undefined if not found.
  */
 export function getStadiumById(id: string): Stadium | undefined {
   return FIFA_STADIUMS.find((s) => s.id === id);
 }
 
 /**
- * Get all zones that are above their alert threshold
+ * Identify all zones that are at or above their configured alert threshold.
+ * Used by the Operations Dashboard to auto-generate critical alerts.
+ * @param stadium - The stadium to analyse.
+ * @returns Array of zones where density >= alertThreshold.
  */
 export function getCriticalZones(stadium: Stadium): StadiumZone[] {
   return stadium.zones.filter((zone) => getCrowdDensity(zone) >= zone.alertThreshold);
 }
 
 /**
- * Supported languages for the AI assistant
+ * Simulate real-time occupancy fluctuation for a zone.
+ * Adds a random ±2% variation to current occupancy, clamped to valid bounds.
+ * @param zone - The zone to simulate.
+ * @returns New occupancy value within [0, zone.capacity].
+ */
+export function simulateOccupancyFluctuation(zone: StadiumZone): number {
+  const maxFluctuation = Math.floor(zone.capacity * SIMULATION_FLUCTUATION_PERCENT);
+  const fluctuation = Math.floor(Math.random() * maxFluctuation) * (Math.random() > 0.5 ? 1 : -1);
+  return Math.max(0, Math.min(zone.capacity, zone.currentOccupancy + fluctuation));
+}
+
+// ─── Multilingual Support ────────────────────────────────────────────────────
+
+/**
+ * Languages supported by the ArenaMind AI Fan Assistant.
+ * Covers the most-spoken languages among FIFA World Cup 2026 attendees.
  */
 export const SUPPORTED_LANGUAGES = [
   { code: 'en', name: 'English', flag: '🇺🇸' },
@@ -165,4 +232,5 @@ export const SUPPORTED_LANGUAGES = [
   { code: 'zh', name: '中文', flag: '🇨🇳' },
 ] as const;
 
+/** ISO language code type derived from the supported languages list. */
 export type LanguageCode = (typeof SUPPORTED_LANGUAGES)[number]['code'];

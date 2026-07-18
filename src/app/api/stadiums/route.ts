@@ -1,14 +1,20 @@
 /**
  * GET /api/stadiums
- * Returns list of FIFA 2026 stadiums with live crowd data
+ * Returns list of FIFA 2026 stadiums with simulated live crowd data.
+ * Each request applies a small random fluctuation to zone occupancy
+ * to demonstrate real-time monitoring capabilities.
  */
 
 import { NextResponse } from 'next/server';
-import { FIFA_STADIUMS, getCrowdDensity, getCrowdStatus } from '@/lib/stadiumData';
+import {
+  FIFA_STADIUMS,
+  getCrowdDensity,
+  getCrowdStatus,
+  simulateOccupancyFluctuation,
+} from '@/lib/stadiumData';
 
 export async function GET() {
   try {
-    // Simulate slight real-time fluctuation in occupancy (±2%)
     const liveData = FIFA_STADIUMS.map((stadium) => ({
       id: stadium.id,
       name: stadium.name,
@@ -17,8 +23,7 @@ export async function GET() {
       capacity: stadium.capacity,
       coordinates: stadium.coordinates,
       zones: stadium.zones.map((zone) => {
-        const fluctuation = Math.floor(Math.random() * (zone.capacity * 0.02)) * (Math.random() > 0.5 ? 1 : -1);
-        const liveOccupancy = Math.max(0, Math.min(zone.capacity, zone.currentOccupancy + fluctuation));
+        const liveOccupancy = simulateOccupancyFluctuation(zone);
         const density = getCrowdDensity({ ...zone, currentOccupancy: liveOccupancy });
         return {
           ...zone,

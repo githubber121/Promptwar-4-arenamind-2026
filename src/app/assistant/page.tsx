@@ -69,12 +69,7 @@ export default function AssistantPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
-  // Reset chat when persona/stadium changes
-  useEffect(() => {
-    setMessages([]);
-    setHistory([]);
-    setError(null);
-  }, [persona, stadiumId]);
+  // Remove useEffect for state reset to fix ESLint set-state-in-effect
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isLoading) return;
@@ -182,7 +177,12 @@ export default function AssistantPage() {
                     key={p}
                     role="radio"
                     aria-checked={isActive}
-                    onClick={() => setPersona(p)}
+                    onClick={() => {
+                      setPersona(p);
+                      setMessages([]);
+                      setHistory([]);
+                      setError(null);
+                    }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: '10px', padding: '12px',
                       borderRadius: '10px', border: `1px solid ${isActive ? cfg.color : 'var(--navy-border)'}`,
@@ -208,7 +208,12 @@ export default function AssistantPage() {
             <select
               id="stadium-select"
               value={stadiumId}
-              onChange={(e) => setStadiumId(e.target.value)}
+              onChange={(e) => {
+                setStadiumId(e.target.value);
+                setMessages([]);
+                setHistory([]);
+                setError(null);
+              }}
               style={{
                 width: '100%', padding: '10px 12px', background: 'var(--navy-card)',
                 border: '1px solid var(--navy-border)', borderRadius: '10px',

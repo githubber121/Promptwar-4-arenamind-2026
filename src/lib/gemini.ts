@@ -1,37 +1,59 @@
 /**
- * Gemini AI client configuration and helper functions
- * Uses @google/generative-ai SDK with security best practices
+ * @module gemini
+ * Google Gemini AI client configuration and messaging.
+ * Implements a singleton pattern for the GenAI client, configures
+ * safety settings to block harmful content, and provides a single
+ * entry point for all AI chat interactions across ArenaMind.
  */
 
-import { GoogleGenerativeAI, GenerativeModel, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import {
+  GoogleGenerativeAI,
+  type GenerativeModel,
+  HarmCategory,
+  HarmBlockThreshold,
+} from '@google/generative-ai';
 
-// Safety settings — block harmful content categories
+// ─── Safety Configuration ────────────────────────────────────────────────────
+
+/**
+ * Safety settings block medium-and-above content across all harm categories.
+ * This ensures the AI never generates harassment, hate speech, explicit,
+ * or dangerous content in any stadium operations context.
+ */
 const SAFETY_SETTINGS = [
   { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
   { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
   { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
   { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-];
+] as const;
 
-// Generation config for consistent, concise responses
+/**
+ * Generation parameters tuned for stadium assistance:
+ * - temperature 0.7: balanced creativity for natural responses
+ * - topK/topP: diversified but coherent token selection
+ * - maxOutputTokens 1024: concise, actionable answers
+ */
 const GENERATION_CONFIG = {
   temperature: 0.7,
   topK: 40,
   topP: 0.95,
   maxOutputTokens: 1024,
-};
+} as const;
+
+// ─── Client Singleton ────────────────────────────────────────────────────────
 
 let genAI: GoogleGenerativeAI | null = null;
 
 /**
- * Get or initialise the Gemini client (singleton pattern)
- * Throws if GEMINI_API_KEY is not configured
+ * Get or initialise the GoogleGenerativeAI client.
+ * Uses a singleton to avoid creating multiple SDK instances.
+ * @throws {Error} If GEMINI_API_KEY environment variable is not set.
  */
 function getGenAI(): GoogleGenerativeAI {
   if (!genAI) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error('GEMINI_API_KEY environment variable is not set.');
+      throw new Error('GEMINI_API_KEY environment variable is not set. See .env.example for setup instructions.');
     }
     genAI = new GoogleGenerativeAI(apiKey);
   }
@@ -39,43 +61,52 @@ function getGenAI(): GoogleGenerativeAI {
 }
 
 /**
- * Get a configured Gemini generative model instance
+ * Get a configured Gemini generative model instance.
+ * @returns A GenerativeModel ready for chat sessions.
  */
 export function getGeminiModel(): GenerativeModel {
   return getGenAI().getGenerativeModel({
     model: 'gemini-3.5-flash',
-    safetySettings: SAFETY_SETTINGS,
+    safetySettings: [...SAFETY_SETTINGS],
     generationConfig: GENERATION_CONFIG,
   });
 }
 
-export interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+/** Standardised response shape from all Gemini interactions. */
+export interface GeminiResponse {
+  readonly success: boolean;
+  readonly text?: string;
+  readonly error?: string;
 }
 
-export interface GeminiResponse {
-  success: boolean;
-  text?: string;
-  error?: string;
+/** A single turn in the conversation history sent to Gemini. */
+export interface HistoryEntry {
+  role: 'user' | 'model';
+  parts: Array<{ text: string }>;
 }
+
+// ─── Messaging ───────────────────────────────────────────────────────────────
 
 /**
- * Send a single message with a system prompt and get a response
- * @param systemPrompt - The persona/context system prompt
- * @param userMessage - The user's sanitised message
- * @param history - Previous conversation turns for context
+ * Send a message to Gemini with a persona system prompt and conversation history.
+ * The system prompt is injected as a synthetic first turn so Gemini adopts
+ * the correct persona and has access to real-time stadium data.
+ *
+ * @param systemPrompt - The persona/context system prompt (fan/ops/volunteer).
+ * @param userMessage - The user's sanitised message.
+ * @param history - Previous conversation turns for multi-turn context.
+ * @returns A GeminiResponse with either the AI text or an error message.
  */
 export async function sendMessage(
   systemPrompt: string,
   userMessage: string,
-  history: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [],
+  history: HistoryEntry[] = [],
 ): Promise<GeminiResponse> {
   try {
     const model = getGeminiModel();
 
-    // Start a chat session with history and inject system prompt into first message
     const chat = model.startChat({
       history: [
         {

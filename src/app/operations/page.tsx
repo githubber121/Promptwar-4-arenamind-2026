@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { FIFA_STADIUMS, getCrowdDensity, getCrowdStatus } from '@/lib/stadiumData';
+import { FIFA_STADIUMS, getCrowdDensity, getCrowdStatus, simulateOccupancyFluctuation } from '@/lib/stadiumData';
 
 interface LiveZone {
   id: string;
@@ -10,7 +10,7 @@ interface LiveZone {
   capacity: number;
   currentOccupancy: number;
   alertThreshold: number;
-  amenities: string[];
+  amenities: readonly string[];
   density: number;
   status: 'low' | 'moderate' | 'high' | 'critical';
 }
@@ -67,8 +67,7 @@ export default function OperationsPage() {
   // Simulate live data updates every 15 seconds
   const refreshData = useCallback(() => {
     const liveZones: LiveZone[] = stadium.zones.map((zone) => {
-      const fluctuation = Math.floor(Math.random() * (zone.capacity * 0.02)) * (Math.random() > 0.5 ? 1 : -1);
-      const occ = Math.max(0, Math.min(zone.capacity, zone.currentOccupancy + fluctuation));
+      const occ = simulateOccupancyFluctuation(zone);
       const density = getCrowdDensity({ ...zone, currentOccupancy: occ });
       return { ...zone, currentOccupancy: occ, density, status: getCrowdStatus(density) };
     });
@@ -78,9 +77,12 @@ export default function OperationsPage() {
   }, [stadium]);
 
   useEffect(() => {
-    refreshData();
+    const timeout = setTimeout(refreshData, 0);
     const interval = setInterval(refreshData, 15_000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
   }, [refreshData]);
 
   const getAiInsight = async () => {
@@ -108,9 +110,9 @@ export default function OperationsPage() {
     }
   };
 
-  const totalOcc = zones.reduce((acc, z) => acc + z.currentOccupancy, 0);
-  const overallDensity = stadium ? Math.round((totalOcc / stadium.capacity) * 100) : 0;
-  const overallStatus = getCrowdStatus(overallDensity);
+  const totalOcc = useMemo(() => zones.reduce((acc, z) => acc + z.currentOccupancy, 0), [zones]);
+  const overallDensity = useMemo(() => stadium ? Math.round((totalOcc / stadium.capacity) * 100) : 0, [totalOcc, stadium]);
+  const overallStatus = useMemo(() => getCrowdStatus(overallDensity), [overallDensity]);
 
   return (
     <div style={{ minHeight: '100vh' }}>
