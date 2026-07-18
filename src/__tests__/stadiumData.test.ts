@@ -125,6 +125,56 @@ describe('getCriticalZones', () => {
   });
 });
 
+describe('simulateOccupancyFluctuation', () => {
+  it('fluctuates within expected limits', () => {
+    const { simulateOccupancyFluctuation } = require('@/lib/stadiumData');
+    const zone = {
+      id: 'test',
+      name: 'Test Zone',
+      capacity: 1000,
+      currentOccupancy: 500,
+      alertThreshold: 90,
+      amenities: [],
+    };
+    
+    // Test multiple times due to randomness
+    for (let i = 0; i < 50; i++) {
+      const newOcc = simulateOccupancyFluctuation(zone);
+      // Max fluctuation is 2% of 1000 = 20
+      expect(newOcc).toBeGreaterThanOrEqual(480);
+      expect(newOcc).toBeLessThanOrEqual(520);
+    }
+  });
+
+  it('clamps to 0 when occupancy would drop below zero', () => {
+    const { simulateOccupancyFluctuation } = require('@/lib/stadiumData');
+    const zone = {
+      id: 'test',
+      name: 'Test Zone',
+      capacity: 1000,
+      currentOccupancy: 0,
+      alertThreshold: 90,
+      amenities: [],
+    };
+    const newOcc = simulateOccupancyFluctuation(zone);
+    expect(newOcc).toBeGreaterThanOrEqual(0);
+  });
+
+  it('clamps to capacity when occupancy would exceed capacity', () => {
+    const { simulateOccupancyFluctuation } = require('@/lib/stadiumData');
+    const zone = {
+      id: 'test',
+      name: 'Test Zone',
+      capacity: 1000,
+      currentOccupancy: 1000,
+      alertThreshold: 90,
+      amenities: [],
+    };
+    const newOcc = simulateOccupancyFluctuation(zone);
+    expect(newOcc).toBeLessThanOrEqual(1000);
+  });
+});
+
 describe('FIFA_STADIUMS data integrity', () => {
   it('has at least 3 stadiums', () => {
     expect(FIFA_STADIUMS.length).toBeGreaterThanOrEqual(3);

@@ -72,6 +72,35 @@ describe('buildOpsPrompt', () => {
     const prompt = buildOpsPrompt(stadium);
     // South Stand is 94.5% which exceeds its 90% threshold
     expect(prompt).toContain('South Stand');
+    expect(prompt).toContain('🔴 ALERT');
+  });
+
+  it('handles all transport status and density branches', () => {
+    const mockStadium = getStadiumById('sofi')!;
+    // Create a mock stadium with varied zone densities and transport statuses to hit all branches
+    const variedStadium = {
+      ...mockStadium,
+      zones: [
+        { ...mockStadium.zones[0], currentOccupancy: 0 }, // < 50% (NORMAL)
+        { ...mockStadium.zones[1], currentOccupancy: mockStadium.zones[1].capacity * 0.6 }, // 60% (MODERATE)
+        { ...mockStadium.zones[2], currentOccupancy: mockStadium.zones[2].capacity * 0.8 }, // 80% (HIGH)
+        { ...mockStadium.zones[3], currentOccupancy: mockStadium.zones[3].capacity * 0.95, alertThreshold: 90 }, // >90% (ALERT)
+      ],
+      transportOptions: [
+        { ...mockStadium.transportOptions[0], currentStatus: 'normal' as const },
+        { ...mockStadium.transportOptions[1], currentStatus: 'delayed' as const },
+        { ...mockStadium.transportOptions[0], currentStatus: 'disrupted' as const, name: 'Disrupted Line' },
+      ],
+    };
+    
+    const prompt = buildOpsPrompt(variedStadium);
+    expect(prompt).toContain('🟢 NORMAL');
+    expect(prompt).toContain('🟡 MODERATE');
+    expect(prompt).toContain('🟠 HIGH');
+    expect(prompt).toContain('🔴 ALERT');
+    expect(prompt).toContain('✅ Normal');
+    expect(prompt).toContain('⚠️ Delayed');
+    expect(prompt).toContain('🚫 Disrupted');
   });
 });
 

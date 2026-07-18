@@ -1,4 +1,5 @@
 // jest.config.js - Using JS to avoid TypeScript strict type checking on jest config
+/* eslint-disable @typescript-eslint/no-require-imports */
 const nextJest = require('next/jest');
 
 const createJestConfig = nextJest({
@@ -8,7 +9,7 @@ const createJestConfig = nextJest({
 const config = {
   coverageProvider: 'v8',
   testEnvironment: 'jsdom',
-  setupFilesAfterFramework: ['<rootDir>/jest.setup.ts'],
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
